@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <locale.h>
 #include <cmath>
+#include <regex>
 
 std::map<std::string, std::string> variables;
 std::map<std::string, bool> booleanVariables;
@@ -380,13 +381,94 @@ public:
         throw std::runtime_error("Estrutura de bloco inválida: faltando comando 'end'.");
     }
 
+    double calculateExpression(const std::string& operand1, const std::string& operatorSymbol, const std::string& operand2) {
+        double value1 = std::stod(operand1);
+        double value2 = std::stod(operand2);
+        double result = 0.0;
+
+        if (operatorSymbol == "+") {
+            result = value1 + value2;
+        }
+        else if (operatorSymbol == "-") {
+            result = value1 - value2;
+        }
+        else if (operatorSymbol == "*") {
+            result = value1 * value2;
+        }
+        else if (operatorSymbol == "/") {
+            if (value2 == 0.0) {
+                throw std::runtime_error("Erro: divisão por zero.");
+            }
+            result = value1 / value2;
+        }
+        else {
+            throw std::runtime_error("Operador inválido: " + operatorSymbol);
+        }
+
+        return result;
+    }
+    
     void interpretPrint(const std::vector<std::string>& tokens) {
         if (tokens.size() < 2) {
             throw std::runtime_error("Sintaxe incorreta para o comando 'print'.");
         }
 
-        std::string output = evaluateExpressionAsString(join(std::vector<std::string>(tokens.begin() + 1, tokens.end()), ' '));
-        std::cout << output << std::endl;
+        std::ostringstream resultStream;
+        for (size_t i = 1; i < tokens.size(); ++i) {
+            std::string token = tokens[i];
+
+            if (token.front() == '"' && token.back() == '"') {
+                // Remover as aspas no início e no final do token
+                token = token.substr(1, token.length() - 2);
+                resultStream << token;
+            }
+            else if (token.front() == '{' && token.back() == '}') {
+                std::string variableName = token.substr(1, token.length() - 2);
+                if (variables.count(variableName) > 0) {
+                    resultStream << variables[variableName];
+                }
+                else {
+                    throw std::runtime_error("Variável '" + variableName + "' não foi definida.");
+                }
+            }
+            else if (token.front() == 'f' && token.find('"') != std::string::npos) {
+                // Processar f-string (formatação de string)
+                std::string formatString = token.substr(token.find('"') + 1, token.rfind('"') - token.find('"') - 1);
+
+                std::regex variableRegex("\\{([^}]+)\\}");
+                std::string::const_iterator searchStartPos = formatString.begin();
+                std::string::const_iterator searchEndPos = formatString.end();
+                std::regex_iterator<std::string::const_iterator> regexIterator(searchStartPos, searchEndPos, variableRegex);
+                std::regex_iterator<std::string::const_iterator> regexEnd;
+
+                size_t formatIndex = 0;
+                while (regexIterator != regexEnd) {
+                    std::smatch match = *regexIterator;
+                    std::string variableName = match[1].str();
+                    if (variables.count(variableName) > 0) {
+                        resultStream << formatString.substr(formatIndex, match[0].first - formatString.begin())
+                            << variables[variableName];
+                        formatIndex = match[0].second - formatString.begin();
+                    }
+                    else {
+                        throw std::runtime_error("Variável '" + variableName + "' não foi definida.");
+                    }
+                    ++regexIterator;
+                }
+
+                resultStream << formatString.substr(formatIndex, formatString.length() - formatIndex);
+            }
+            else {
+                resultStream << token;
+            }
+
+            // Adicionar espaço em branco entre os tokens, exceto o último
+            if (i < tokens.size() - 1) {
+                resultStream << " ";
+            }
+        }
+
+        std::cout << resultStream.str() << std::endl;
     }
 
     std::string evaluateExpressionAsString(const std::string& expression) {
