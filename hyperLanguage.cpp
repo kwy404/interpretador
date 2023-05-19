@@ -188,14 +188,33 @@ public:
     }
 
     void interpretLet(const std::vector<std::string>& tokens) {
-        if (tokens.size() < 3 || tokens[1].back() != '=') {
+        if (tokens.size() < 4 || tokens[2] != "=") {
             throw std::runtime_error("Sintaxe incorreta para o comando 'let'.");
         }
 
-        std::string variable = tokens[1].substr(0, tokens[1].size() - 1);
-        std::string expression = join(std::vector<std::string>(tokens.begin() + 2, tokens.end()), ' ');
-        double value = evaluateExpression(expression);
-        variables[variable] = std::to_string(value);
+        std::string variable = tokens[1];
+        std::string valueStr = join(std::vector<std::string>(tokens.begin() + 3, tokens.end()), ' ');
+
+        if (valueStr.front() == '"' && valueStr.back() == '"') {
+            // Valor de texto (string)
+            std::string value = valueStr.substr(1, valueStr.size() - 2);
+            variables[variable] = value;
+        }
+        else if (valueStr == "true" || valueStr == "false") {
+            // Valor booleano
+            bool value = (valueStr == "true");
+            variables[variable] = (value ? "true" : "false");
+        }
+        else {
+            // Valor numérico
+            try {
+                double value = std::stod(valueStr);
+                variables[variable] = std::to_string(value);
+            }
+            catch (const std::exception&) {
+                throw std::runtime_error("Valor inválido para atribuição.");
+            }
+        }
     }
 
     double evaluateExpression(const std::string& expression) {
