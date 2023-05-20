@@ -133,14 +133,16 @@ public:
         }
 
         const std::string& condition = tokens[1];
-        const std::vector<std::string>& ifBlock = getBlock(tokens, 3);
-        const std::vector<std::string>& elseBlock = getBlock(tokens, 3 + ifBlock.size() + 1);
+        const std::vector<std::string>& ifBlock = getBlock(tokens, 3, "endif");
+        const std::vector<std::string>& elseBlock = getBlock(tokens, 3 + ifBlock.size() + 1, "endif");
 
         if (evaluateCondition(condition)) {
             interpret(ifBlock);
         }
-        else if (!elseBlock.empty()) {
-            interpret(elseBlock);
+        else {
+            if (!elseBlock.empty()) {
+                interpret(elseBlock);
+            }
         }
     }
 
@@ -356,29 +358,35 @@ public:
         }
     }
 
-    std::vector<std::string> getBlock(const std::vector<std::string>& tokens, size_t startIndex) {
+    std::vector<std::string> getBlock(const std::vector<std::string>& tokens, size_t startIndex, const std::string& endCommand) {
         std::vector<std::string> block;
         int nestingLevel = 0;
+        bool foundEndCommand = false;
 
         for (size_t i = startIndex; i < tokens.size(); ++i) {
             const std::string& token = tokens[i];
 
-            if (token == "if" || token == "foreach") {
-                ++nestingLevel;
-            }
-            else if (token == "end") {
+            if (token == endCommand) {
                 if (nestingLevel == 0) {
-                    return block;
+                    foundEndCommand = true;
+                    break;
                 }
                 else {
                     --nestingLevel;
                 }
             }
+            else if (token == "if" || token == "elseif" || token == "else") {
+                ++nestingLevel;
+            }
 
             block.push_back(token);
         }
 
-        throw std::runtime_error("Estrutura de bloco inválida: faltando comando 'end'.");
+        if (!foundEndCommand) {
+            throw std::runtime_error("Estrutura de bloco inválida: faltando comando '" + endCommand + "'.");
+        }
+
+        return block;
     }
 
     double calculateExpression(const std::string& operand1, const std::string& operatorSymbol, const std::string& operand2) {
@@ -420,9 +428,13 @@ public:
             if (token.front() == '"' && token.back() == '"') {
                 // Remover as aspas no início e no final do token
                 token = token.substr(1, token.length() - 2);
-                resultStream << token;
             }
-            else if (token.find("{") != std::string::npos && token.find("}") != std::string::npos) {
+            else if (token.front() == 'f') {
+                // Remover o prefixo "f" para f-string
+                token = token.substr(1);
+            }
+
+            if (token.find("{") != std::string::npos && token.find("}") != std::string::npos) {
                 // Processar f-string (formatação de string)
                 std::regex variableRegex("\\{(.*?)\\}");
                 std::string::const_iterator searchStartPos = token.begin();
@@ -450,7 +462,13 @@ public:
             }
         }
 
-        std::cout << resultStream.str() << std::endl;
+        std::string output = resultStream.str();
+        // Remover as aspas da mensagem final
+        if (output.front() == '"' && output.back() == '"') {
+            output = output.substr(1, output.length() - 2);
+        }
+
+        std::cout << output << std::endl;
     }
 
     std::string evaluateExpressionAsString(const std::string& expression) {
