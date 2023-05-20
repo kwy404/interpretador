@@ -422,41 +422,23 @@ public:
                 token = token.substr(1, token.length() - 2);
                 resultStream << token;
             }
-            else if (token.front() == '{' && token.back() == '}') {
-                std::string variableName = token.substr(1, token.length() - 2);
-                if (variables.count(variableName) > 0) {
-                    resultStream << variables[variableName];
-                }
-                else {
-                    throw std::runtime_error("Variável '" + variableName + "' não foi definida.");
-                }
-            }
-            else if (token.front() == 'f' && token.find('"') != std::string::npos) {
+            else if (token.find("{") != std::string::npos && token.find("}") != std::string::npos) {
                 // Processar f-string (formatação de string)
-                std::string formatString = token.substr(token.find('"') + 1, token.rfind('"') - token.find('"') - 1);
-
-                std::regex variableRegex("\\{([^}]+)\\}");
-                std::string::const_iterator searchStartPos = formatString.begin();
-                std::string::const_iterator searchEndPos = formatString.end();
-                std::regex_iterator<std::string::const_iterator> regexIterator(searchStartPos, searchEndPos, variableRegex);
-                std::regex_iterator<std::string::const_iterator> regexEnd;
-
-                size_t formatIndex = 0;
-                while (regexIterator != regexEnd) {
-                    std::smatch match = *regexIterator;
-                    std::string variableName = match[1].str();
+                std::regex variableRegex("\\{(.*?)\\}");
+                std::string::const_iterator searchStartPos = token.begin();
+                std::string::const_iterator searchEndPos = token.end();
+                std::smatch match;
+                while (std::regex_search(searchStartPos, searchEndPos, match, variableRegex)) {
+                    std::string variableName = match.str(1);
                     if (variables.count(variableName) > 0) {
-                        resultStream << formatString.substr(formatIndex, match[0].first - formatString.begin())
-                            << variables[variableName];
-                        formatIndex = match[0].second - formatString.begin();
+                        resultStream << match.prefix() << variables[variableName];
+                        searchStartPos = match.suffix().first;
                     }
                     else {
                         throw std::runtime_error("Variável '" + variableName + "' não foi definida.");
                     }
-                    ++regexIterator;
                 }
-
-                resultStream << formatString.substr(formatIndex, formatString.length() - formatIndex);
+                resultStream << match.suffix();
             }
             else {
                 resultStream << token;
